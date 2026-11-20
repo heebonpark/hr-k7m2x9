@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f766e" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>홈레이더(HomeRadar) — 청약 · 분양가 · 경쟁률 · 착공 통합 분석</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" type="image/svg+xml" href="./icons/icon.svg" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <!-- AES-256-GCM Password Lock Gate -->
+  <div class="lock-gate hidden" id="lockGate" role="dialog" aria-modal="true">
+    <div class="lock-card">
+      <div class="brand-ico" style="margin:0 auto 12px; width:48px; height:48px; font-size:1.4rem;">🔐</div>
+      <h2 style="margin:0 0 6px;">홈레이더 비공개 접속</h2>
+      <p class="muted" style="margin:0 0 18px; font-size:0.84rem;">AES-256-GCM으로 암호화된 개인용 부동산·청약 분석 앱입니다. 비밀번호를 입력하세요.</p>
+      <form id="lockForm">
+        <input type="password" id="lockPass" class="input" placeholder="접속 비밀번호 입력" autocomplete="current-password" required style="margin-bottom:10px; text-align:center;" />
+        <label style="display:flex; align-items:center; justify-content:center; gap:6px; font-size:0.8rem; color:var(--text-sub); margin-bottom:14px; cursor:pointer;">
+          <input type="checkbox" id="lockRemember" checked />
+          <span>이 기기에서 로그인 유지</span>
+        </label>
+        <button type="submit" class="btn btn-primary" style="width:100%; padding:11px;">🔓 잠금 해제</button>
+      </form>
+      <div id="lockErr" style="color:var(--rose); font-size:0.8rem; font-weight:700; margin-top:10px; min-height:18px;"></div>
+    </div>
+  </div>
+
+  <header class="top-nav">
+    <div class="container nav-inner">
+      <div class="brand">
+        <span class="brand-ico">🏠</span>
+        <span>홈레이더</span>
+        <span class="brand-pill">청약·분양·착공</span>
+      </div>
+      <div class="nav-right">
+        <span class="muted" id="snapshotBadge">로딩 중…</span>
+        <button type="button" class="btn btn-outline btn-sm" id="btnTheme" title="다크/라이트 전환">🌙</button>
+        <button type="button" class="btn btn-outline btn-sm hidden" id="btnLockNow" title="앱 잠그기">🔒</button>
+      </div>
+    </div>
+  </header>
+
+  <nav class="main-tabs" aria-label="메인 탭">
+    <div class="container tab-strip">
+      <button type="button" class="nav-tab active" data-tab="listings">🏠 청약 분양</button>
+      <button type="button" class="nav-tab" data-tab="comp">📊 경쟁률 · 당첨가점</button>
+      <button type="button" class="nav-tab" data-tab="starts">🏗 착공 · 공동주택</button>
+      <button type="button" class="nav-tab" data-tab="calc">🧮 가점 · 대출 계산기</button>
+      <button type="button" class="nav-tab" data-tab="api">🔌 실시간 API · 진단</button>
+    </div>
+  </nav>
+
+  <main class="container">
+    <!-- TAB 1: 청약 분양 -->
+    <section id="tabListings">
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">전체 청약 공고</div>
+          <div class="kpi-val" id="kpiTotal">-</div>
+          <div class="kpi-sub" id="kpiSubBreak">APT · 줍줍 · 오피스텔</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">📅 접수 예정 · 진행중</div>
+          <div class="kpi-val" id="kpiActive">-</div>
+          <div class="kpi-sub">오늘 이후 접수 가능</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">🔥 무순위(줍줍) 공고</div>
+          <div class="kpi-val" id="kpiRemndr">-</div>
+          <div class="kpi-sub">청약통장 불필요·잔여세대</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">💰 APT 평균 평당가</div>
+          <div class="kpi-val" id="kpiAvgPy">-</div>
+          <div class="kpi-sub">공급면적 3.3㎡ 기준</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="filter-bar">
+          <div class="filter-row">
+            <input type="search" id="qInput" class="input" placeholder="단지명, 시공사, 지역, 초성 검색 (예: 자이, 인천, 경기, ㄹㅁㅇ)" autocomplete="off" />
+            <select id="areaSelect" class="select" aria-label="지역 선택">
+              <option value="">전국 시·도 전체</option>
+            </select>
+            <select id="sortSelect" class="select" aria-label="정렬">
+              <option value="pub">정렬: 공고 최신순</option>
+              <option value="close">정렬: 접수 마감임박순</option>
+              <option value="units">정렬: 대단지(세대수)순</option>
+              <option value="py_asc">정렬: 평당가 낮은순</option>
+              <option value="rate">정렬: 최고 경쟁률순</option>
+            </select>
+          </div>
+          <div class="chip-row" id="kindChips">
+            <button type="button" class="chip active" data-kind="">전체</button>
+            <button type="button" class="chip" data-kind="apt">🏢 APT 분양</button>
+            <button type="button" class="chip" data-kind="remndr">🔥 무순위 줍줍</button>
+            <button type="button" class="chip" data-kind="urbty">🏙 오피스텔·도시형</button>
+            <button type="button" class="chip" id="chipOpenOnly">📅 접수 예정·진행중</button>
+            <button type="button" class="chip" id="chipStarOnly">⭐ 관심단지 (0)</button>
+            <button type="button" class="btn btn-outline btn-sm" id="btnReset">↺ 초기화</button>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <div>검색 결과 <strong id="matchCount">0</strong>건 <span class="muted">(카드를 누르면 주택형별 분양가·경쟁률·당첨가점 상세)</span></div>
+          <button type="button" class="btn btn-outline btn-sm" id="btnCsvListings">⬇ CSV 엑셀 저장</button>
+        </div>
+
+        <div class="card-grid" id="listingsGrid"></div>
+      </div>
+    </section>
+
+    <!-- TAB 2: 경쟁률 · 당첨가점 랭킹 -->
+    <section id="tabComp" class="hidden">
+      <div class="panel">
+        <div class="toolbar">
+          <div><strong>📊 최근 APT 청약 1순위 최고 경쟁률 & 당첨 가점 커트라인</strong> <span class="muted">행 클릭 시 단지 상세</span></div>
+          <select id="compSort" class="select" style="width:auto;">
+            <option value="rate">최고 경쟁률순</option>
+            <option value="score">당첨 가점 높은순</option>
+            <option value="req">총 접수건수순</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>순위</th>
+                <th>단지명 / 지역</th>
+                <th class="num">세대수</th>
+                <th class="num">평균 평당가</th>
+                <th class="num">1순위 최고경쟁률</th>
+                <th class="num">1순위 접수</th>
+                <th class="num">최저 / 평균 가점</th>
+              </tr>
+            </thead>
+            <tbody id="compTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: 착공 · 공동주택 단지 -->
+    <section id="tabStarts" class="hidden">
+      <div class="panel">
+        <div class="filter-bar">
+          <div class="chip-row" id="startSubChips">
+            <button type="button" class="chip active" data-sub="gyeyang">🏗 인천 계양구 공동주택 착공</button>
+            <button type="button" class="chip" data-sub="songpa">🏢 서울 송파구 착공현황</button>
+            <button type="button" class="chip" data-sub="kapt">🏘 K-apt 의무관리 공동주택 단지</button>
+          </div>
+          <div class="starts-filter-row">
+            <input type="search" id="startSearch" class="input" placeholder="건물명, 단지명, 시공사, 주소 검색" />
+            <select id="kaptSggSelect" class="select">
+              <option value="28245">인천 계양구 (28245)</option>
+              <option value="28237">인천 부평구 (28237)</option>
+              <option value="28185">인천 연수구 (28185)</option>
+              <option value="28200">인천 남동구 (28200)</option>
+              <option value="11710">서울 송파구 (11710)</option>
+              <option value="11680">서울 강남구 (11680)</option>
+              <option value="11650">서울 서초구 (11650)</option>
+              <option value="41135">경기 성남시 분당구 (41135)</option>
+              <option value="41590">경기 화성시 (41590)</option>
+              <option value="26350">부산 해운대구 (26350)</option>
+            </select>
+            <div class="starts-actions">
+              <button type="button" class="btn btn-primary btn-sm" id="btnFetchKaptRegion" style="flex:1;">🔄 선택 지역 K-apt 조회</button>
+              <button type="button" class="btn btn-outline btn-sm" id="btnCsvStarts">⬇ CSV</button>
+            </div>
+          </div>
+        </div>
+        <div class="toolbar">
+          <div>표시 건수 <strong id="startCount">0</strong>건</div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>출처 / 구분</th>
+                <th>건물명 · 단지명</th>
+                <th>소재지</th>
+                <th>시공사 / 규모</th>
+                <th class="num">연면적(㎡) / 코드</th>
+                <th>착공·승인일</th>
+              </tr>
+            </thead>
+            <tbody id="startsTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: 청약 가점 · 평당가 · 대출 계산기 -->
+    <section id="tabCalc" class="hidden">
+      <div class="calc-grid">
+        <!-- 84-point Subscription Score Calculator -->
+        <div class="panel panel-pad">
+          <h3 style="margin:0 0 12px;">🧮 청약 가점 계산기 (84점 만점)</h3>
+          <div class="score-hero">
+            <div>
+              <div style="font-size:0.8rem; opacity:0.9;">내 예상 청약 가점</div>
+              <div class="score-big" id="calcTotalScore">52점</div>
+            </div>
+            <div style="text-align:right; font-size:0.82rem;">
+              <div id="calcScoreBreak">무주택 20 + 부양 20 + 통장 12</div>
+              <div style="margin-top:4px; font-weight:700;" id="calcPassSummary">-</div>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="calcHomeless">1. 무주택 기간 (만 30세 또는 혼인신고일 기준 · 최대 32점)</label>
+            <select id="calcHomeless" class="select"></select>
+          </div>
+          <div class="field">
+            <label for="calcDeps">2. 부양가족 수 (본인 제외 · 최대 35점)</label>
+            <select id="calcDeps" class="select"></select>
+          </div>
+          <div class="field">
+            <label for="calcBank">3. 청약통장 가입기간 (최대 17점)</label>
+            <select id="calcBank" class="select"></select>
+          </div>
+
+          <div style="margin-top:14px;">
+            <strong style="font-size:0.86rem;">🎯 내 가점으로 최근 당첨 커트라인 통과 가능한 단지</strong>
+            <div id="calcMatchList" style="margin-top:8px; display:flex; flex-direction:column; gap:6px; max-height:240px; overflow-y:auto;"></div>
+          </div>
+        </div>
+
+        <!-- Pyeong Price & Mortgage Calculator -->
+        <div class="panel panel-pad">
+          <h3 style="margin:0 0 12px;">💰 평당가 · 주담대 월 상환액 계산기</h3>
+          <div class="score-hero" style="background:linear-gradient(135deg,#1d4ed8,#0f766e);">
+            <div>
+              <div style="font-size:0.8rem; opacity:0.9;">예상 월 상환액 (원리금균등)</div>
+              <div class="score-big" id="loanMonthly">-</div>
+            </div>
+            <div style="text-align:right; font-size:0.82rem;">
+              <div>3.3㎡ 평당가: <strong id="loanPyPrice">-</strong></div>
+              <div style="margin-top:4px;">필요 자기자본: <strong id="loanEquity">-</strong></div>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="loanPrice">분양가 (만원 · 예: 85000 = 8.5억)</label>
+            <input type="number" id="loanPrice" class="input" value="85000" step="1000" min="5000" />
+          </div>
+          <div class="field">
+            <label for="loanArea">공급면적 (㎡ · 예: 112 ≈ 34평형)</label>
+            <input type="number" id="loanArea" class="input" value="112" step="1" min="20" />
+          </div>
+          <div class="loan-sub-grid">
+            <div class="field">
+              <label for="loanLtv">LTV (%)</label>
+              <input type="number" id="loanLtv" class="input" value="70" min="0" max="80" />
+            </div>
+            <div class="field">
+              <label for="loanRate">연 금리 (%)</label>
+              <input type="number" id="loanRate" class="input" value="4.2" step="0.1" min="1" max="15" />
+            </div>
+            <div class="field">
+              <label for="loanYears">만기 (년)</label>
+              <input type="number" id="loanYears" class="input" value="30" min="5" max="40" />
+            </div>
+          </div>
+          <div class="muted" id="loanDetailNote" style="margin-top:8px;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: 실시간 API 연동 · 진단 -->
+    <section id="tabApi" class="hidden">
+      <div class="panel panel-pad">
+        <h3 style="margin:0 0 6px;">🔌 공공데이터포털 부동산 API 6종 실시간 연동 & 진단</h3>
+        <p class="muted" style="margin:0 0 14px;">인증키는 브라우저 로컬(<code>localStorage</code>)에만 저장되며 외부로 전송되지 않습니다. 6개 API 모두 브라우저 실시간 호출(<code>CORS *</code>)을 지원합니다.</p>
+
+        <div class="api-input-row">
+          <div class="api-key-group">
+            <input type="password" id="apiKeyInput" class="input" placeholder="공공데이터포털 일반 인증키 (Encoding 또는 Decoding)" />
+            <button type="button" class="btn btn-outline" id="btnToggleEye">👁</button>
+            <button type="button" class="btn btn-outline" id="btnSaveKey">키 저장</button>
+          </div>
+          <div class="api-btn-group">
+            <button type="button" class="btn btn-indigo" id="btnDiagAll">🩺 6개 API 전체 진단</button>
+            <button type="button" class="btn btn-primary" id="btnRefreshLive">🔄 실시간 전체 새로고침</button>
+          </div>
+        </div>
+        <div class="muted" id="keyMaskText">현재 저장 키: 미입력</div>
+
+        <div id="diagResultBoard" class="diag-grid"></div>
+        <pre id="apiLogBox" style="margin-top:14px; background:var(--surface-alt); padding:12px; border-radius:10px; font-size:0.78rem; white-space:pre-wrap; border:1px solid var(--border);">대기 중… [6개 API 전체 진단] 또는 [실시간 전체 새로고침]을 눌러보세요.</pre>
+      </div>
+    </section>
+  </main>
+
+  <!-- Listing Detail Modal -->
+  <div class="modal-bg" id="detailModal" role="dialog" aria-modal="true">
+    <div class="modal">
+      <div class="modal-head">
+        <div>
+          <div class="badge-row" id="dmBadges" style="margin-bottom:6px;"></div>
+          <h3 id="dmTitle" style="margin:0;">단지명</h3>
+          <div class="muted" id="dmSub">-</div>
+        </div>
+        <button type="button" class="modal-close" id="btnCloseDetail" aria-label="닫기">✕</button>
+      </div>
+
+      <div id="dmSummary" class="prop-metrics dm-summary"></div>
+
+      <div id="dmLinks" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;"></div>
+
+      <div id="dmModelsWrap" style="margin-bottom:16px;"></div>
+      <div id="dmCompWrap" style="margin-bottom:16px;"></div>
+      <div id="dmScoreWrap"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

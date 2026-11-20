@@ -1,0 +1,12 @@
+{
+  "name": "홈레이더 — 청약·분양가·경쟁률·착공 분석",
+  "short_name": "홈레이더",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f6f8fb",
+  "theme_color": "#0f766e",
+  "icons": [
+    { "src": "./icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ],
+  "description": "한국부동산원 청약홈 분양·무순위 줍줍·경쟁률·당첨가점·착공현황·공동주택 통합 분석 앱"
+}

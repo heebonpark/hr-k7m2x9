@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "iter": 310000,
+  "salt": "uh5caXmqkRM4TjaUg6YSCg==",
+  "checkIv": "J+aG0bbZ+pTJs5m3",
+  "checkCt": "/RWEgm1WvHEjXMKhNib/Ph6rgV24+VtNnbxxOs+9IKuxmWuIzg==",
+  "builtAt": "2026-11-20",
+  "totalBytes": 39757,
+  "files": [
+    "realestate"
+  ]
+}
